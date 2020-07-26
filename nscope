@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+
+import json
+import sys
+import argparse
+import re
+
+# Define arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('-t',
+                    '--targets',
+                    type=argparse.FileType('r'),
+                    help='Optional input file of target URLs.')
+parser.add_argument('-s',
+                    '--scope',
+                    type=argparse.FileType('r'),
+                    required=True,
+                    help='Specify scope file in BurpSuite format.')
+parser.add_argument('-o',
+                    '--output',
+                    type=argparse.FileType('w+'),
+                    help='Optional file to save URLs that are in scope.')
+args = parser.parse_args()
+
+# Choose which input to use based on arguments
+if args.targets:
+    input = open(args.targets)
+else:
+    input = sys.stdin
+
+# Load Scope file
+scope = json.load(args.scope)
+
+# Define list of in scope urls for output
+in_scope_urls = ""
+
+# URL processing loop
+excluded = False
+target_list = input.readlines()
+for target in target_list:
+    # parse json data
+    for block in scope['target']['scope']['exclude']:
+        # Does URL match an excluded hostname?
+        if re.search(block['host'], target):
+            # If so, check for a more specific allow entry
+            for allow in scope['target']['scope']['include']:
+                # remove special chars in allow entry to make a domain name
+                allow_n = allow['host'].replace('\\', '').replace('^', '').replace('$', '')
+                # test the block entry against the normalized domain name
+                if re.search(block['host'], allow_n):
+                    # if the allowed domain name fits in the block domain entry
+                    # , then it must be more specific.
+                    # Test URL against the allow entry
+                    if re.search(allow['host'], target):
+                        # If it matches, save the URL
+                        in_scope_urls += target
+                    else:
+                        excluded = True
+                else:
+                    excluded = True
+
+    # If not, then save the url to a list
+    if excluded is False:
+        in_scope_urls += target
+
+    # reset excluded flag
+    excluded = False
+
+# remove in scope urls duplicates
+in_scope_urls = "\n".join(list(dict.fromkeys(in_scope_urls.split("\n"))))
+
+# write output to file or STDOUT depending on arguments
+if args.output:
+    with open(args.output, 'w+') as f:
+        f.write(in_scope_urls)
+else:
+    sys.stdout.write(in_scope_urls)
