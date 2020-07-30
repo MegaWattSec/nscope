@@ -24,7 +24,7 @@ args = parser.parse_args()
 
 # Choose which input to use based on arguments
 if args.targets:
-    input = open(args.targets)
+    input = args.targets
 else:
     input = sys.stdin
 
