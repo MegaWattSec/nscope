@@ -27,6 +27,7 @@ if args.targets:
     input = args.targets
 else:
     input = sys.stdin
+target_list = input.readlines()
 
 # Load Scope file
 scope = json.load(args.scope)
@@ -36,28 +37,30 @@ in_scope_urls = ""
 
 # URL processing loop
 excluded = False
-target_list = input.readlines()
 for target in target_list:
     # parse json data
-    for block in scope['target']['scope']['exclude']:
-        # Does URL match an excluded hostname?
-        if re.search(block['host'], target):
-            # If so, check for a more specific allow entry
-            for allow in scope['target']['scope']['include']:
-                # remove special chars in allow entry to make a domain name
-                allow_n = allow['host'].replace('\\', '').replace('^', '').replace('$', '')
-                # test the block entry against the normalized domain name
-                if re.search(block['host'], allow_n):
-                    # if the allowed domain name fits in the block domain entry
-                    # , then it must be more specific.
-                    # Test URL against the allow entry
-                    if re.search(allow['host'], target):
-                        # If it matches, save the URL
-                        in_scope_urls += target
+    try:
+        for block in scope['target']['scope']['exclude']:
+            # Does URL match an excluded hostname?
+            if re.search(block['host'], target):
+                # If so, check for a more specific allow entry
+                for allow in scope['target']['scope']['include']:
+                    # remove special chars in allow entry to make a domain name
+                    allow_n = allow['host'].replace('\\', '').replace('^', '').replace('$', '')
+                    # test the block entry against the normalized domain name
+                    if re.search(block['host'], allow_n):
+                        # if the allowed domain name fits in the block domain entry
+                        # , then it must be more specific.
+                        # Test URL against the allow entry
+                        if re.search(allow['host'], target):
+                            # If it matches, save the URL
+                            in_scope_urls += target
+                        else:
+                            excluded = True
                     else:
                         excluded = True
-                else:
-                    excluded = True
+    except TypeError:
+        pass
 
     # If not, then save the url to a list
     if excluded is False:
