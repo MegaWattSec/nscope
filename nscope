@@ -74,7 +74,6 @@ in_scope_urls = "\n".join(list(dict.fromkeys(in_scope_urls.split("\n"))))
 
 # write output to file or STDOUT depending on arguments
 if args.output:
-    with open(args.output, 'w+') as f:
-        f.write(in_scope_urls)
+    args.output.write(in_scope_urls)
 else:
     sys.stdout.write(in_scope_urls)
