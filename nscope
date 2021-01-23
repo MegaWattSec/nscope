@@ -4,6 +4,7 @@ import json
 import sys
 import argparse
 import re
+import fnmatch
 
 def main():
     # Define arguments
@@ -53,30 +54,30 @@ def main():
                     # Test against the out_of_scope section
                     for block in scope['targets']['out_of_scope']:
                         # Does URL match an excluded hostname?
-                        if re.search(f"^{block['asset_identifier']}$", target):
+                        if fnmatch.filter([target], block['asset_identifier']):
                             # print(f"{target} matches an excluded hostname: {block['asset_identifier']}.")
                             excluded = True
                             # If so, check for a more specific allow entry
                             for allow in scope['targets']['in_scope']:
                                 # print(f"Testing {allow['asset_identifier']}...")
-                                if re.search(f"^{block['asset_identifier']}$", allow["asset_identifier"]):
+                                if fnmatch.filter([allow["asset_identifier"]], block['asset_identifier']):
                                     # Test URL against the allow entry
                                     # print(f"{allow} is more specific than {block['asset_identifier']}")
-                                    if re.search(f"^{allow['asset_identifier']}$", target):
+                                    if fnmatch.filter([target], allow['asset_identifier']):
                                         excluded = False
                     # Test against the in_scope section
                     for allow in scope["targets"]["in_scope"]:
                         # Does URL match an included hostname?
-                        if re.search(f"^{allow['asset_identifier']}$", target):
+                        if fnmatch.filter([target], allow['asset_identifier']):
                             # print(f"{target} matches an included hostname: {allow['asset_identifier']}")
                             excluded = False
                             # If so, check for a more specific exclusion entry
                             for block in scope["targets"]["out_of_scope"]:
                                 # print(f"Testing against {block['asset_identifier']}:")
-                                if re.search(f"^{allow['asset_identifier']}$", block["asset_identifier"]):
+                                if fnmatch.filter([block["asset_identifier"]], allow['asset_identifier']):
                                     # print(f"{block} is more specific than {allow['asset_identifier']}")
                                     # if there is a more specific blocked entry, test the target against it
-                                    if re.search(f"^{block['asset_identifier']}$", allow):
+                                    if fnmatch.filter([allow], block['asset_identifier']):
                                         excluded = True
         except TypeError:
             pass
