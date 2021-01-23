@@ -11,6 +11,7 @@ def main():
     parser.add_argument('-t',
                         '--targets',
                         type=str,
+                        required=True,
                         help='Target URL to check. If needing a list of targets, pipe through STDIN.')
     parser.add_argument('-d',
                         '--data',
@@ -20,6 +21,7 @@ def main():
     parser.add_argument('-p',
                         '--program',
                         type=str,
+                        required=True,
                         help='Handle for bounty program in bounty-targets-data.')
     parser.add_argument('-o',
                         '--output',
