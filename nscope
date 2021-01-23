@@ -5,75 +5,92 @@ import sys
 import argparse
 import re
 
-# Define arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('-t',
-                    '--targets',
-                    type=argparse.FileType('r'),
-                    help='Optional input file of target URLs.')
-parser.add_argument('-s',
-                    '--scope',
-                    type=argparse.FileType('r'),
-                    required=True,
-                    help='Specify scope file in BurpSuite format.')
-parser.add_argument('-o',
-                    '--output',
-                    type=argparse.FileType('w+'),
-                    help='Optional file to save URLs that are in scope.')
-args = parser.parse_args()
+def main():
+    # Define arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t',
+                        '--targets',
+                        type=str,
+                        help='Target URL to check. If needing a list of targets, pipe through STDIN.')
+    parser.add_argument('-d',
+                        '--data',
+                        type=argparse.FileType('r'),
+                        required=True,
+                        help='Bounty-targets-data file.')
+    parser.add_argument('-p',
+                        '--program',
+                        type=str,
+                        help='Handle for bounty program in bounty-targets-data.')
+    parser.add_argument('-o',
+                        '--output',
+                        type=argparse.FileType('w+'),
+                        help='Optional file to save URLs that are in scope.')
+    args = parser.parse_args()
 
-# Choose which input to use based on arguments
-if args.targets:
-    input = args.targets
-else:
-    input = sys.stdin
-target_list = input.readlines()
+    # Choose which input to use based on arguments
+    if args.targets:
+        target_list = [args.targets]
+    else:
+        target_list = [line.strip() for line in sys.stdin.readlines()]
 
-# Load Scope file
-scope = json.load(args.scope)
+    # Load data file
+    targets_data = json.load(args.data)
 
-# Define list of in scope urls for output
-in_scope_urls = ""
+    # Define list of in scope urls for output
+    in_scope_urls = ""
 
-# URL processing loop
-excluded = False
-for target in target_list:
-    # parse json data
-    try:
-        for block in scope['target']['scope']['exclude']:
-            # Does URL match an excluded hostname?
-            if re.search(block['host'], target):
-                # If so, check for a more specific allow entry
-                for allow in scope['target']['scope']['include']:
-                    # remove special chars in allow entry to make a domain name
-                    allow_n = allow['host'].replace('\\', '').replace('^', '').replace('$', '')
-                    # test the block entry against the normalized domain name
-                    if re.search(block['host'], allow_n):
-                        # if the allowed domain name fits in the block domain entry
-                        # , then it must be more specific.
-                        # Test URL against the allow entry
-                        if re.search(allow['host'], target):
-                            # If it matches, save the URL
-                            in_scope_urls += target
-                        else:
+    # URL processing loop
+    for target in target_list:
+        excluded = True
+        # parse json data
+        try:
+            # Find the block for target
+            for scope in targets_data:
+                if scope["handle"] == args.program:
+                    # print(f"Trying {target}...")
+                    # Test against the out_of_scope section
+                    for block in scope['targets']['out_of_scope']:
+                        # Does URL match an excluded hostname?
+                        if re.search(f"^{block['asset_identifier']}$", target):
+                            # print(f"{target} matches an excluded hostname: {block['asset_identifier']}.")
                             excluded = True
-                    else:
-                        excluded = True
-    except TypeError:
-        pass
+                            # If so, check for a more specific allow entry
+                            for allow in scope['targets']['in_scope']:
+                                # print(f"Testing {allow['asset_identifier']}...")
+                                if re.search(f"^{block['asset_identifier']}$", allow["asset_identifier"]):
+                                    # Test URL against the allow entry
+                                    # print(f"{allow} is more specific than {block['asset_identifier']}")
+                                    if re.search(f"^{allow['asset_identifier']}$", target):
+                                        excluded = False
+                    # Test against the in_scope section
+                    for allow in scope["targets"]["in_scope"]:
+                        # Does URL match an included hostname?
+                        if re.search(f"^{allow['asset_identifier']}$", target):
+                            # print(f"{target} matches an included hostname: {allow['asset_identifier']}")
+                            excluded = False
+                            # If so, check for a more specific exclusion entry
+                            for block in scope["targets"]["out_of_scope"]:
+                                # print(f"Testing against {block['asset_identifier']}:")
+                                if re.search(f"^{allow['asset_identifier']}$", block["asset_identifier"]):
+                                    # print(f"{block} is more specific than {allow['asset_identifier']}")
+                                    # if there is a more specific blocked entry, test the target against it
+                                    if re.search(f"^{block['asset_identifier']}$", allow):
+                                        excluded = True
+        except TypeError:
+            pass
 
-    # If not, then save the url to a list
-    if excluded is False:
-        in_scope_urls += target
+        # If not, then save the url to a list
+        if excluded is False:
+            in_scope_urls += target
 
-    # reset excluded flag
-    excluded = False
+    # remove in scope urls duplicates
+    in_scope_urls = "\n".join(list(dict.fromkeys(in_scope_urls.split("\n"))))
 
-# remove in scope urls duplicates
-in_scope_urls = "\n".join(list(dict.fromkeys(in_scope_urls.split("\n"))))
+    # write output to file or STDOUT depending on arguments
+    if args.output:
+        args.output.write(in_scope_urls)
+    else:
+        sys.stdout.write(in_scope_urls)
 
-# write output to file or STDOUT depending on arguments
-if args.output:
-    args.output.write(in_scope_urls)
-else:
-    sys.stdout.write(in_scope_urls)
+if __name__ == "__main__":
+    main()
